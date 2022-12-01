@@ -1,81 +1,65 @@
 import cv2
-import numpy as np
-#FASTER LAUNCH OF THE WEBCAM AND SMOOTHER VIDEO IN openCV
-width=640 #1920,1280,320
-height=360 #1080,720,180
-#define the functions on the trackbar:
-def onTrack1(val):
-    global huelow
-    huelow=val
-    print('Hue Low',huelow)
-def onTrack2(val):
-    global huehigh
-    huehigh=val
-    print('Hue High',huehigh)
-def onTrack3(val):
-    global satlow
-    satlow=val
-    print('Sat Low',satlow)
-def onTrack4(val):
-    global sathigh
-    sathigh=val
-    print('Sat high',sathigh)
-def onTrack5(val):
-    global vallow
-    vallow=val
-    print('Val Low',vallow)
-def onTrack6(val):
-    global valhigh
-    valhigh=val
-    print('Val High',valhigh)
+#import numpy as np
+print(cv2.__version__)
+
+tracker_types = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
+tracker_type = tracker_types[2]
+
+if tracker_type == 'BOOSTING':
+    tracker = cv2.TrackerBoosting_create()
+if tracker_type == 'MIL':
+    tracker = cv2.TrackerMIL_create() 
+if tracker_type == 'KCF':
+    tracker = cv2.TrackerKCF_create() 
+if tracker_type == 'TLD':
+    tracker = cv2.TrackerTLD_create() 
+if tracker_type == 'MEDIANFLOW':
+    tracker = cv2.TrackerMedianFlow_create() 
+if tracker_type == 'GOTURN':
+    tracker = cv2.TrackerGOTURN_create()
+if tracker_type == 'MOSSE':
+    tracker = cv2.TrackerMOSSE_create()
+if tracker_type == "CSRT":
+    tracker = cv2.TrackerCSRT_create()
+
+cam = cv2.VideoCapture(1)
+width = 1280
+height = 720
+
+cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+cam.set(cv2.CAP_PROP_FPS, 30)
+
+firstFrame = True
 
 
-
-cam=cv2.VideoCapture(0,cv2.CAP_DSHOW) #CAPTURING THE FRAME AND DOING A DIRECT SHOW
-cam.set(cv2.CAP_PROP_FRAME_WIDTH, width) #set the width we want
-cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height) #set the height we want
-cam.set(cv2.CAP_PROP_FPS, 30) 
-cam.set(cv2.CAP_PROP_FOURCC,cv2.VideoWriter_fourcc(*'MJPG')) #moving jpg
-
-
-cv2.namedWindow('MyTracker')
-cv2.moveWindow('MyTracker',width,0)
-#Basically, color tracking is tracking the Hue (Goes from 0 to 179 and it is the color itself)
-#And the Saturation value (defines how bright the color is)
-#And the Val value, that defines how dark the Color is)
-# #we need to set the initial values
-huelow=10
-huehigh=20
-satlow=10
-sathigh=250
-vallow=10
-valhigh=250
-cv2.createTrackbar('Hue Low','MyTracker',10,179,onTrack1)
-cv2.createTrackbar('Hue High','MyTracker',20,179,onTrack2)
-cv2.createTrackbar('Sat Low','MyTracker',10,255,onTrack3)
-cv2.createTrackbar('Sat High','MyTracker',250,255,onTrack4)
-cv2.createTrackbar('Val Low','MyTracker',10,255,onTrack5)
-cv2.createTrackbar('Val High','MyTracker',250,255,onTrack6)
 while True:
-    ignore, frame=cam.read()
+    _, frame = cam.read()
+    if firstFrame == True:
+        bbox = cv2.selectROI("Tracking", frame)
+        ret = tracker.init(frame, bbox)
+        firstFrame = False
 
+    timer = cv2.getTickCount()
+    ret, bbox = tracker.update(frame)
+    fps = cv2.getTickFrequency() / (cv2.getTickCount() - timer)
+    if ret:
+        upperLeft = (int(bbox[0]), int(bbox[1]))
+        lowerRight = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+        cv2.rectangle(frame, upperLeft, lowerRight, (0,255,255), 2)
+    else:
+        cv2.putText(frame, "Tracking failure!!", (100,80), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,0,0), 2)
     
-    frameHSV=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
-    lowerBound=np.array([huelow,satlow,vallow]) #set the minimum array value to compare
-    upperBound=np.array([huehigh,sathigh,valhigh])#set the maximum array value to compare
-    myMask=cv2.inRange(frameHSV,lowerBound,upperBound) #will show all the pixels that are in the range of lower and upperBound and it will turn white(in range) or black(not in range)
-    #myMask=cv2.bitwise_not(myMask) the color that matches the HSV values is removed from the Object frame
-    myObject=cv2.bitwise_and(frame,frame,mask=myMask)
+    print(upperLeft)
+    print(lowerRight)
+    cv2.putText(frame, tracker_type + " Tracker", (100,20), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
+    cv2.putText(frame, "FPS : " + str(int(fps)), (100,50), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (50,170,50),2)
+    cv2.imshow("Tracking", frame)
     
-    myObjectsmall=cv2.resize(myObject,(int(width/2),int(height/2)))
-    cv2.imshow('My Object',myObjectsmall)
-    cv2.moveWindow('My Object',int(width/2),int(height))
-    myMaskSmall=cv2.resize(myMask,(int(width/2),int(height/2)))#only for display purposes
-    cv2.imshow('My Mask', myMaskSmall)
-    cv2.moveWindow('My Mask',0,height)
-    
-    cv2.imshow('My WEBCAM',frame)
-    cv2.moveWindow('My WEBCAM',0,0)
     if cv2.waitKey(1) & 0xff == ord('q'):
         break
-cam.release()
+cam.release(0)
+cv2.destroyAllWindows()
+
+
+    
